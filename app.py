@@ -106,13 +106,14 @@ if st.button("関連キーワードを取得", type="primary"):
                     use_container_width=True
                 )
             
+                       # --- ダウンロードとChatGPT連携機能 ---
             st.subheader("🤖 ChatGPT連携用プロンプト")
+            
+            # キーワードリストを整形
             formatted_keywords = "\n".join([f"- {kw}" for kw in suggestions_list])
-            # --- 書き換えるプロンプト部分 ---
-
-# --- 書き換えるプロンプト部分 ---
-
-prompt_template = f"""あなたは優秀なWebメディアの編集長です。
+            
+            # 改善案2改のプロンプト
+            prompt_template = f"""あなたは優秀なWebメディアの編集長です。
 以下のキーワードリストから読者の検索意図を深く読み取り、検索上位を狙える高品質なブログ記事の企画を5つ提案してください。
 
 各提案は、必ず以下の厳格なフォーマットに従って出力してください。
@@ -132,7 +133,7 @@ prompt_template = f"""あなたは優秀なWebメディアの編集長です。
 # 参考キーワードリスト
 {formatted_keywords}
 """
-"""
+            
             st.text_area(
                 "以下のプロンプトをコピーしてChatGPTで使えます👇",
                 prompt_template,
