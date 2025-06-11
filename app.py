@@ -5,22 +5,24 @@ import time
 import json
 import urllib.parse
 
-# --- コア機能：Googleサジェストを取得する関数（最終確認版） ---
+# --- コア機能：Googleサジェストを取得する関数（最終対策版） ---
 def get_google_suggestions(base_keyword):
     """
     指定されたキーワードに基づき、Googleサジェストから関連キーワードを取得する。
-    User-Agentヘッダー、タイムアウト、詳細なエラーハンドリングを追加。
+    ブラウザからのリクエストに偽装する client パラメータを追加。
     """
     suggest_letters = "abcdefghijklmnopqrstuvwxyzあいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん"
     keywords = set([base_keyword])
-    errors = [] # エラーメッセージを格納するリスト
+    errors = []
 
+    # ★★★★★ ここが最大の変更点 ★★★★★
+    # Firefoxブラウザからの検索に見せかけるURL
+    url_template = "http://suggestqueries.google.com/complete/search?client=firefox&hl=ja&q={}"
+    
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36',
-        'Referer': 'https://www.google.com/'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0'
     }
     
-    url_template = "http://www.google.com/complete/search?hl=ja&q={}&output=toolbar"
     search_queries = [base_keyword] + [f"{base_keyword} {letter}" for letter in suggest_letters]
 
     for query in search_queries:
@@ -28,40 +30,35 @@ def get_google_suggestions(base_keyword):
             encoded_query = urllib.parse.quote_plus(query)
             url = url_template.format(encoded_query)
             
-            # タイムアウトを設定して、リクエストが長時間止まらないようにする
             response = requests.get(url, headers=headers, timeout=5)
             response.raise_for_status()
 
-            suggestions_text = response.text.split('(', 1)[-1].rsplit(')', 1)[0]
-            suggestions = json.loads(suggestions_text)
+            # レスポンスのエンコーディングを明示的に指定
+            response.encoding = 'utf-8'
             
-            # suggestions[1]が存在し、中身がある場合のみ処理
-            if len(suggestions) > 1 and suggestions[1]:
+            # 返ってくるのは純粋なJSON配列
+            suggestions = json.loads(response.text)
+            
+            if len(suggestions) > 1:
                 for suggestion in suggestions[1]:
-                    # suggestionがタプルやリストで、中身があることを確認
-                    if isinstance(suggestion, (list, tuple)) and suggestion:
-                        keywords.add(suggestion[0])
+                    keywords.add(suggestion)
 
-            time.sleep(0.15) # 待機時間を少しだけ延長
+            time.sleep(0.1) # 負荷軽減の待機
 
         except requests.exceptions.RequestException as e:
-            # ネットワーク関連のエラー
             errors.append(f"リクエストエラー: {query} ({e})")
             continue
-        except (json.JSONDecodeError, IndexError) as e:
-            # Googleが空の応答や予期せぬ形式で返してきた場合
-            errors.append(f"レスポンス解析エラー: {query} ({e})")
+        except json.JSONDecodeError as e:
+            errors.append(f"レスポンス解析エラー: {query} ({e}) - Response: {response.text[:100]}")
             continue
         except Exception as e:
-            # その他の予期せぬエラー
             errors.append(f"不明なエラー: {query} ({e})")
             continue
             
-    # エラーがあれば、アプリ上に表示する
     if errors:
         with st.expander("デバッグ情報：取得中にいくつかのエラーが発生しました"):
             st.warning("これらのエラーは、Googleによる一時的なアクセス制限の可能性があります。全てのキーワードが取得できていない場合があります。")
-            st.json(errors[:5]) # エラーが多すぎても表示が崩れないよう、最初の5件のみ表示
+            st.json(errors[:5])
 
     return sorted(list(keywords))
 
@@ -69,7 +66,6 @@ def get_google_suggestions(base_keyword):
 st.set_page_config(page_title="SEOキーワード発想支援ツール", layout="wide")
 st.title("🚀 SEOキーワード発想支援ツール")
 st.write("ChatGPTとの連携に特化した、Googleサジェストキーワード取得アプリです。")
-# ...(これ以降のUI部分は変更なし)...
 
 with st.expander("使い方を見る"):
     st.markdown("""
@@ -125,7 +121,7 @@ if st.button("関連キーワードを取得", type="primary"):
             )
         elif len(suggestions_list) == 1:
             st.warning("関連キーワードの取得に失敗したか、関連語が存在しませんでした。別のキーワードで試してみてください。")
-        else: # 0件の場合
+        else:
             st.error("キーワードの取得に失敗しました。時間をおいて再度お試しください。")
 
     else:
