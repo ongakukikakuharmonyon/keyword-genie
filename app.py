@@ -5,53 +5,52 @@ import time
 import json
 import urllib.parse
 
-# --- コア機能：Googleサジェストを取得する関数 ---
+# --- コア機能：Googleサジェストを取得する関数（修正版） ---
 def get_google_suggestions(base_keyword):
     """
     指定されたキーワードに基づき、Googleサジェストから関連キーワードを取得する。
-    a-z, あ-ん の接尾辞を追加して、より多くの候補を網羅する。
+    User-Agentヘッダーを追加して、ブロックを回避しやすくする。
     """
     # サジェスト候補を生成するための接尾辞
     suggest_letters = "abcdefghijklmnopqrstuvwxyzあいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん"
     
-    keywords = set()  # 重複を避けるためにセットを使用
-    keywords.add(base_keyword)  # 元のキーワードもリストに含める
+    keywords = set()
+    keywords.add(base_keyword)
 
-    # Google Suggest APIのエンドポイント
-    url_template = "http://www.google.com/complete/search?hl=ja&q={}&output=toolbar"
+    # 一般的なブラウザのUser-Agentを指定
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36'
+    }
     
-    # 1. 元のキーワードそのものでサジェストを取得
-    # 2. 元のキーワード + 接尾辞でサジェストを取得
+    url_template = "http://www.google.com/complete/search?hl=ja&q={}&output=toolbar"
     search_queries = [base_keyword] + [f"{base_keyword} {letter}" for letter in suggest_letters]
 
     for query in search_queries:
         try:
-            # URLエンコード
             encoded_query = urllib.parse.quote_plus(query)
             url = url_template.format(encoded_query)
             
-            response = requests.get(url)
-            response.raise_for_status()  # HTTPエラーがあれば例外を発生
+            # headersを付けてリクエストを送信
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
 
-            # レスポンスはJSONPのような形式なので、JSON部分のみを抽出してパース
-            # 例: "window.google.ac.h([...])" -> "[...]"
             suggestions_text = response.text.split('(', 1)[-1].rsplit(')', 1)[0]
             suggestions = json.loads(suggestions_text)
             
-            # 提案されたキーワード（タプル形式）をリストに追加
             for suggestion in suggestions[1]:
-                keywords.add(suggestion[0]) # suggestion[0]にキーワード文字列が入っている
+                keywords.add(suggestion[0])
 
-            time.sleep(0.1)  # サーバーへの負荷を軽減するためのウェイト
+            time.sleep(0.12) # 少し待機時間を長くして、より丁寧にアクセスする
 
         except requests.exceptions.RequestException as e:
-            st.error(f"APIリクエスト中にエラーが発生しました: {e}")
-            break # エラーが発生したらループを中断
-        except json.JSONDecodeError:
-            # JSONデコードエラーは時々発生するが、致命的ではないのでスキップ
+            # エラーが出ても処理を止めずに次に進む
+            print(f"Request failed for query '{query}': {e}")
+            continue
+        except (json.JSONDecodeError, IndexError):
+            # JSONデコードエラーやインデックスエラーは無視して次に進む
             continue
             
-    return sorted(list(keywords)) # ソートしてリストで返す
+    return sorted(list(keywords))
 
 # --- Streamlit UI の構築 ---
 
