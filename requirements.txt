@@ -1,3 +1,5 @@
-streamlit
-pandas
-requests
+streamlit>=1.28.0
+requests>=2.31.0
+pandas>=2.0.0
+# オプション: Googleトレンド機能を使いたい場合のみ
+# pytrends>=4.9.2
